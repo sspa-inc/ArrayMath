@@ -86,7 +86,7 @@ ArrayMath stores data internally as a 2D real array with shape:
 nrow rows x ncol columns
 ```
 
-The command line declares this shape with `-d nrow ncol`. Input files are read as whitespace-delimited text unless a future binary reader is implemented.
+The command line declares this shape with `-d nrow ncol`. Input files are read as comma|tab|space-delimited text unless a future binary reader is implemented.
 
 Optional row and column names are supported:
 
@@ -478,7 +478,7 @@ Sort columns by column name.
 
 - `-d` must be supplied before operations that need array allocation.
 - Options are applied immediately in the order they appear.
-- Text input is whitespace-delimited.
+- Text input is comma|tab|space-delimited (read by Fortran's read(, *)).
 - Column and row selectors use 1-based indexing.
 - `matinv` and `dot` are currently disabled/commented in the source.
 - MODFLOW binary options are placeholders and are not implemented yet.
