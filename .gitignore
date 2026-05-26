@@ -30,3 +30,4 @@
 *.exe
 *.out
 *.app
+/.autotest_tmp
