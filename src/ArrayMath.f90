@@ -188,12 +188,7 @@ program arraymath
           results = results * rscale
         else
           allocate(multi, source=results)
-          if (trim(multfile) == '-') then
-            !TODO:
-            read(input_unit, *) multi
-          else
-            call readdata(multfile, multi)
-          end if
+          call readdata(multfile, multi)
           if (verbose) print*, "Multiplying array from "//trim(multfile)
           results = results * multi
           deallocate(multi)
@@ -220,12 +215,7 @@ program arraymath
 
         allocate(array, source=results)
         allocate(multi, source=results)
-        if (trim(arrfile) == '-') then
-          !TODO:
-          read(input_unit, *) array
-        else
-          call readdata(arrfile, array)
-        end if
+        call readdata(arrfile, array)
 
         if (trim(multfile) /= '' .and. trim(multfile) /= '-') then
           call readdata(multfile, multi)
@@ -372,7 +362,11 @@ program arraymath
   character(:), allocatable :: line
   integer         :: iskip
 
-  open(newunit=ifile, file=trim(afile), status='old')
+  if (trim(afile) == '-') then
+    ifile = input_unit
+  else
+    open(newunit=ifile, file=trim(afile), status='old')
+  end if
 
   do irow=1, nskiprow
     read(ifile, *)
@@ -416,7 +410,7 @@ program arraymath
       end do
     end if
   end if
-  close(ifile)
+  if (ifile /= input_unit) close(ifile)
   end subroutine
 
   subroutine read_record(unit, line)

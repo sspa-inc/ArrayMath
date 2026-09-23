@@ -126,6 +126,11 @@ result = result + array * multiply_array * scale
 ```
 
 Use `-` for `arrayfile` to read from stdin. Use `-` for `multiplyfile` when no multiplier array is needed.
+Piped input also supports row and column names when `-rn` and `-cn` precede `-a`.
+
+```powershell
+"TIME,D1,D2", "09/30/1973_24:00,1,2" | .\bin\ArrayMath.exe -d 1 2 -rn -cn -a - - 1
+```
 
 Example:
 

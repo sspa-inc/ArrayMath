@@ -199,6 +199,33 @@ Assert-Matrix "add and default output" `
   @(@(1, 2, 3), @(4, 5, 6), @(7, 8, 9), @(10, 11, 12))
 
 try {
+  $piped = @('TIME,D1,D2', '09/30/1973_24:00,1,2') |
+    & $ExePath -d 1 2 -rn -cn -a - - 1
+  if ($LASTEXITCODE -ne 0 -or ($piped -join "`n") -notmatch 'TIME\s+D1\s+D2\s+09/30/1973_24:00\s+1\.0+\s+2\.0+') {
+    throw "unexpected named stdin output: $($piped -join ' | ')"
+  }
+  $script:Passed += 1
+  Write-Host "PASS piped named input"
+} catch {
+  $script:Failed += 1
+  Write-Host "FAIL piped named input"
+  Write-Host "     $($_.Exception.Message)"
+}
+
+try {
+  $piped = '2 3 4' | & $ExePath -d 1 3 -a $base - 1 -m -
+  if ($LASTEXITCODE -ne 0 -or ($piped -join ' ') -notmatch '^2\.0+\s+6\.0+\s+12\.0+') {
+    throw "unexpected multiplier stdin output: $($piped -join ' | ')"
+  }
+  $script:Passed += 1
+  Write-Host "PASS piped multiplier input"
+} catch {
+  $script:Failed += 1
+  Write-Host "FAIL piped multiplier input"
+  Write-Host "     $($_.Exception.Message)"
+}
+
+try {
   $lfOutput = Join-Path $tmp "lf_output.dat"
   & $ExePath -d 4 3 -a $base - 1.0 --lf $lfOutput | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "file output exited with code $LASTEXITCODE" }
