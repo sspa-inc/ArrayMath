@@ -406,7 +406,12 @@ program arraymath
       end do
     else
       do irow=1, nrow
-        read(ifile, *) stemp(1:nskipcol), arr(:, irow)
+        call read_record(ifile, line)
+        call normalize_delimiters(line)
+        do iskip=1, nskipcol
+          call take_field(line, stemp(iskip))
+        end do
+        read(line, *) arr(:, irow)
       end do
     end if
   end if
