@@ -62,6 +62,10 @@ program arraymath
                                    &-s r1:10 to subset the first 10 rows;"//spaces//"&
                                    &-s c1,3,5 to subset the columns 1,3 and 5;"//spaces//"&
                                    &-s r2:2 or -s c5:5 to subset one row or column."), &
+    option_s("head"     , "hd", 1, "keep the first n rows of the current array."), &
+    option_s("tail"     , "tl", 1, "keep the last n rows of the current array."), &
+    option_s("unique"   , "un", 0, "keep the first occurrence of each distinct numeric row."), &
+    option_s("reverse"  , "rv", 0, "reverse the order of rows."), &
     option_s("filter"   ,  "f", 1, "filter array by column names or column index, e.g."//spaces//"&
                                    &--filter time>=3; --filter layer==1; --filter 2>0"), &
     option_s("verbose"  ,  "v", 0, "print running logs to screen."), &
@@ -111,6 +115,20 @@ program arraymath
 
       case("s")
         call subset()
+
+      case("hd")
+        read(optarg, *) ntmp
+        call head_rows(ntmp)
+
+      case("tl")
+        read(optarg, *) ntmp
+        call tail_rows(ntmp)
+
+      case("un")
+        call unique_rows()
+
+      case("rv")
+        call reverse_rows()
 
       case("st")
         call stack()
@@ -425,6 +443,77 @@ program arraymath
     end if
     if (hasColName==1) colnames(1) = 'stacked_values'
     call redefine_array(source=reshape(results, [1,nrow*ncol]))
+  end subroutine
+
+
+  subroutine head_rows(count)
+    integer, intent(in) :: count
+
+    if (count < 1) call perror('The row count for --head must be greater than zero.')
+    if (nrow < 1) call perror('No rows are available for --head.')
+    call keep_rows(1, min(count, nrow))
+  end subroutine
+
+
+  subroutine tail_rows(count)
+    integer, intent(in) :: count
+    integer :: first
+
+    if (count < 1) call perror('The row count for --tail must be greater than zero.')
+    if (nrow < 1) call perror('No rows are available for --tail.')
+    first = max(1, nrow - count + 1)
+    call keep_rows(first, nrow)
+  end subroutine
+
+
+  subroutine keep_rows(first, last)
+    integer, intent(in) :: first, last
+    integer :: new_nrow
+
+    if (first == 1 .and. last == nrow) return
+    new_nrow = last - first + 1
+    tmpnames = rownames
+    results = results(1:ncol, first:last)
+    rownames(1:new_nrow) = tmpnames(first:last)
+    nrow = new_nrow
+  end subroutine
+
+
+  subroutine unique_rows()
+    integer :: i, j, nkeep
+    integer, allocatable :: kept(:)
+    logical :: duplicate
+
+    allocate(kept(nrow))
+    nkeep = 0
+    do i = 1, nrow
+      duplicate = .false.
+      do j = 1, nkeep
+        if (all(results(1:ncol, i) == results(1:ncol, kept(j)))) then
+          duplicate = .true.
+          exit
+        end if
+      end do
+      if (duplicate) cycle
+      nkeep = nkeep + 1
+      kept(nkeep) = i
+    end do
+
+    if (nkeep == nrow) return
+    tmpnames = rownames
+    results = results(1:ncol, kept(1:nkeep))
+    rownames(1:nkeep) = tmpnames(kept(1:nkeep))
+    nrow = nkeep
+  end subroutine
+
+
+  subroutine reverse_rows()
+    integer :: i
+
+    if (nrow < 2) return
+    tmpnames = rownames
+    results = results(1:ncol, nrow:1:-1)
+    rownames(1:nrow) = tmpnames(nrow:1:-1)
   end subroutine
 
 

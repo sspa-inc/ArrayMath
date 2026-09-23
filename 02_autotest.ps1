@@ -98,7 +98,7 @@ if (-not (Test-Path $ExePath)) {
   throw "Could not find ArrayMath executable: $ExePath"
 }
 
-$tmp = Join-Path $PSScriptRoot ".autotest_tmp"
+$tmp = ".autotest_tmp"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 
 $base = Join-Path $tmp "base.dat"
@@ -149,6 +149,22 @@ Write-TestFile $series @(
   "4"
 )
 
+$repeated = Join-Path $tmp "repeated.dat"
+Write-TestFile $repeated @(
+  "1 2",
+  "3 4",
+  "1 2",
+  "5 6",
+  "3 4"
+)
+
+$namedRepeated = Join-Path $tmp "named_repeated.dat"
+Write-TestFile $namedRepeated @(
+  "first 1 2",
+  "middle 3 4",
+  "last 1 2"
+)
+
 Assert-Matrix "add and default output" `
   @("-d", "4", "3", "-a", $base, "-", "1.0") `
   @(@(1, 2, 3), @(4, 5, 6), @(7, 8, 9), @(10, 11, 12))
@@ -180,6 +196,42 @@ Assert-Matrix "transpose option" `
 Assert-Matrix "row and column subsets" `
   @("-d", "4", "3", "-a", $base, "-", "1.0", "-s", "r2:3", "-s", "c2,3") `
   @(@(5, 6), @(8, 9))
+
+Assert-Matrix "head option" `
+  @("-d", "4", "3", "-a", $base, "-", "1.0", "--head", "2") `
+  @(@(1, 2, 3), @(4, 5, 6))
+
+Assert-Matrix "tail option" `
+  @("-d", "4", "3", "-a", $base, "-", "1.0", "--tail", "2") `
+  @(@(7, 8, 9), @(10, 11, 12))
+
+Assert-Matrix "head and tail follow command order" `
+  @("-d", "4", "3", "-a", $base, "-", "1.0", "-tl", "3", "-hd", "2") `
+  @(@(4, 5, 6), @(7, 8, 9))
+
+Assert-Matrix "unique keeps first numeric rows" `
+  @("-d", "5", "2", "-a", $repeated, "-", "1.0", "--unique") `
+  @(@(1, 2), @(3, 4), @(5, 6))
+
+Assert-Matrix "reverse preserves row order semantics" `
+  @("-d", "4", "3", "-a", $base, "-", "1.0", "--reverse", "--head", "2") `
+  @(@(10, 11, 12), @(7, 8, 9))
+
+Assert-Matrix "reverse then unique retains first occurrence" `
+  @("-d", "5", "2", "-a", $repeated, "-", "1.0", "-rv", "-un") `
+  @(@(3, 4), @(5, 6), @(1, 2))
+
+try {
+  $namedOutput = Invoke-ArrayMath @("-d", "3", "2", "-rn", "-a", $namedRepeated, "-", "1.0", "--reverse", "--unique")
+  $names = @($namedOutput -split "`r?`n" | ForEach-Object { ($_ -split "\s+")[0] })
+  if (($names -join ",") -ne "last,middle") { throw "expected last,middle; got $($names -join ',')" }
+  $script:Passed += 1
+  Write-Host "PASS unique and reverse preserve row names"
+} catch {
+  $script:Failed += 1
+  Write-Host "FAIL unique and reverse preserve row names"
+  Write-Host "     $($_.Exception.Message)"
+}
 
 Assert-Matrix "stack option" `
   @("-d", "4", "3", "-a", $base, "-", "1.0", "-st") `

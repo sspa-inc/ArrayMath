@@ -352,6 +352,37 @@ bin\ArrayMath.exe -d 10 5 -a data.dat - 1.0 -s r1:5
 bin\ArrayMath.exe -d 10 5 -a data.dat - 1.0 -s c1,3,5
 ```
 
+### Head and Tail
+
+`-hd count`, `--head count`
+
+Keeps the first `count` rows of the current array.
+
+`-tl count`, `--tail count`
+
+Keeps the last `count` rows of the current array. Counts larger than the current
+number of rows keep the entire array. Both operations are applied in command-line
+order, like `--subset`.
+
+Examples:
+
+```bat
+bin\ArrayMath.exe -d 100 5 -a data.dat - 1.0 --head 10
+bin\ArrayMath.exe -d 100 5 -a data.dat - 1.0 --tail 10
+```
+
+### Unique and Reverse
+
+`-un`, `--unique` keeps the first occurrence of each distinct numeric row.
+Row names do not affect which rows are duplicates; the retained row keeps its name.
+
+`-rv`, `--reverse` reverses the current row order, including row names.
+Both switches are applied in command-line order with other operations.
+
+```bat
+bin\ArrayMath.exe -d 100 5 -a data.dat - 1.0 --unique --reverse
+```
+
 ### Filter
 
 `-f expression`, `--filter expression`
