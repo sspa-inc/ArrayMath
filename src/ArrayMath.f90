@@ -5,7 +5,8 @@ program arraymath
   use arraymath_table, only: replace_real_matrix, transpose_real_matrix
   use f90getopt
   use m_mrgref
-  use iso_fortran_env, only: input_unit, error_unit, output_unit
+  use iso_fortran_env, only: input_unit, error_unit, output_unit, iostat_eor, iostat_end
+  use iso_c_binding, only: c_int, c_ptr, c_loc, c_char, c_null_ptr, c_associated
   use, intrinsic :: ieee_arithmetic
   implicit none
 
@@ -24,10 +25,27 @@ program arraymath
   character(10)   :: func
   character(30), allocatable   :: rownames(:), colnames(:), tmpnames(:)
   character(len=28) :: spaces
-  logical         :: verbose
+  logical         :: verbose, lfOutput
 
   integer         :: nrow, ncol, itemp, mdim, hasRowName, hasColName, maxRowNameWidth, ntmp
   integer, allocatable:: rowindex(:)
+
+#if defined(_WIN32) || defined(__MINGW32__)
+  interface
+    function get_std_handle(which) bind(C, name='GetStdHandle') result(handle)
+      import c_int, c_ptr
+      integer(c_int), value :: which
+      type(c_ptr) :: handle
+    end function
+    function write_file(handle, buffer, count, written, overlapped) bind(C, name='WriteFile') result(ok)
+      import c_int, c_ptr
+      type(c_ptr), value :: handle, buffer, overlapped
+      integer(c_int), value :: count
+      integer(c_int) :: written
+      integer(c_int) :: ok
+    end function
+  end interface
+#endif
 
   spaces = new_line(" ")//repeat(" ", 27)
   allocate(opts, source=(/&
@@ -38,6 +56,7 @@ program arraymath
                                    &if the argument starts with '*', it multiplies the number after '*'."), &
     ! option_s("dot"      , "dt", 1, "Calculate dot product of the array and another array."), &
     option_s("help"     ,  "h", 0, "show this message."), &
+    option_s("lf"       , "lf", 0, "write output with LF (line feed) line endings instead of the compiler default."), &
     option_s("fmt"      , "fm", 1, "fortran format to write results such as '(10F10.3)'; default is '(*(G0.8,x))'."), &
     option_s("offset"   ,  "o", 1, "adding offset to the final result, default is zero."), &
     option_s("duplicate", "dr", 1, "duplicate the rows for a number of times."), &
@@ -86,6 +105,7 @@ program arraymath
   func = ''
   power = 1.0
   verbose = .false.
+  lfOutput = .false.
   outfile = '~'
   hasRowName = 0
   hasColName = 0
@@ -229,6 +249,9 @@ program arraymath
       case("fm")
         fomt=adjustl(trim(optarg))
 
+      case("lf")
+        lfOutput = .true.
+
       case("h")
         call showhelp
 
@@ -264,8 +287,13 @@ program arraymath
     !end where
     if (trim(outfile)=='~') then
       ifile = output_unit ! print to IO
+      if (lfOutput) flush(output_unit)
     else
-      open(newunit=ifile, file=outfile, status='replace')
+      if (lfOutput) then
+        open(newunit=ifile, file=outfile, status='replace', access='stream', form='unformatted')
+      else
+        open(newunit=ifile, file=outfile, status='replace')
+      end if
     end if
 
     maxRowNameWidth = 0
@@ -274,23 +302,75 @@ program arraymath
         maxRowNameWidth = max(maxRowNameWidth, len_trim(rownames(irow)))
       end do
     end if
-    if (hasColName==1) write(ifile, '(A,x,*(A,x))') colnames(0)(:maxRowNameWidth), (colnames(icol)(1:max(9,len_trim(colnames(icol)))),icol=1,ncol)
+    if (hasColName==1) call write_lf_line(.true., 0)
 
     do irow=1, nrow
-      if (hasRowName==1) then
-        write(ifile, "(A,x,"//trim(fomt(2:))) rownames(irow)(:maxRowNameWidth), results(1:ncol, irow)
-      else
-        write(ifile, trim(fomt)) results(1:ncol, irow)
-      end if
+      call write_lf_line(.false., irow)
     end do
-    close(ifile)
+    if (trim(outfile)/='~') close(ifile)
     if (verbose) print*, 'Results have been written to "'//trim(outfile)//'" successfully'
 
   end subroutine write_reslts
 
+  subroutine write_lf_line(header, row)
+    logical, intent(in) :: header
+    integer, intent(in) :: row
+    character(:), allocatable :: line
+    integer :: capacity, status
+#if defined(_WIN32) || defined(__MINGW32__)
+    character(kind=c_char,len=:), allocatable, target :: output
+    integer(c_int) :: written, ok
+    type(c_ptr) :: stdout_handle
+#endif
+
+    if (.not. lfOutput) then
+      if (header) then
+        write(ifile, '(A,x,*(A,x))') colnames(0)(:maxRowNameWidth), &
+          (colnames(icol)(1:max(9,len_trim(colnames(icol)))),icol=1,ncol)
+      else if (hasRowName==1) then
+        write(ifile, "(A,x,"//trim(fomt(2:))) rownames(row)(:maxRowNameWidth), results(1:ncol, row)
+      else
+        write(ifile, trim(fomt)) results(1:ncol, row)
+      end if
+      return
+    end if
+
+    capacity = max(256, 32*ncol)
+    do
+      allocate(character(capacity) :: line)
+      if (header) then
+        write(line, '(A,x,*(A,x))', iostat=status) colnames(0)(:maxRowNameWidth), &
+          (colnames(icol)(1:max(9,len_trim(colnames(icol)))),icol=1,ncol)
+      else if (hasRowName==1) then
+        write(line, "(A,x,"//trim(fomt(2:)), iostat=status) rownames(row)(:maxRowNameWidth), results(1:ncol, row)
+      else
+        write(line, trim(fomt), iostat=status) results(1:ncol, row)
+      end if
+      if (status == 0) exit
+      if (status /= iostat_eor) call perror('Could not format output line.')
+      deallocate(line)
+      capacity = capacity*2
+    end do
+    if (trim(outfile)=='~') then
+#if defined(_WIN32) || defined(__MINGW32__)
+      output = trim(line)//achar(10)
+      stdout_handle = get_std_handle(-11_c_int)
+      if (.not. c_associated(stdout_handle)) call perror('Could not get stdout handle.')
+      ok = write_file(stdout_handle, c_loc(output), int(len(output), c_int), written, c_null_ptr)
+      if (ok == 0 .or. written /= len(output)) call perror('Could not write stdout.')
+#else
+      write(output_unit, '(A)') trim(line)
+#endif
+    else
+      write(ifile) trim(line)//achar(10)
+    end if
+  end subroutine write_lf_line
+
   subroutine readdata(afile, arr)
   character(1024) :: afile
   real            :: arr(:,:)
+  character(:), allocatable :: line
+  integer         :: iskip
 
   open(newunit=ifile, file=trim(afile), status='old')
 
@@ -299,18 +379,23 @@ program arraymath
   end do
 
   if (hasColName==1) then
-    if (nskipcol>0) then
-      read(ifile, *) stemp(1:nskipcol), colnames((1-hasRowName):ncol)
-    else
-      read(ifile, *) colnames((1-hasRowName):ncol)
-    end if
+    call read_record(ifile, line)
+    call normalize_delimiters(line)
+    do iskip=1, nskipcol
+      call take_field(line, stemp(iskip))
+    end do
+    do icol=1-hasRowName, ncol
+      call take_field(line, colnames(icol))
+    end do
     rownames(0) = colnames(0)
   end if
 
   if (nskipcol==0) then
     if (hasRowName==1) then
       do irow=1, nrow
-        read(ifile, *) rownames(irow), arr(:, irow)
+        call read_record(ifile, line)
+        call normalize_delimiters(line)
+        call read_named_row(line, arr(:, irow))
       end do
     else
       read(ifile, *) arr
@@ -318,7 +403,12 @@ program arraymath
   else
     if (hasRowName==1) then
       do irow=1, nrow
-        read(ifile, *) stemp(1:nskipcol), rownames(irow), arr(:, irow)
+        call read_record(ifile, line)
+        call normalize_delimiters(line)
+        do iskip=1, nskipcol
+          call take_field(line, stemp(iskip))
+        end do
+        call read_named_row(line, arr(:, irow))
       end do
     else
       do irow=1, nrow
@@ -327,6 +417,55 @@ program arraymath
     end if
   end if
   close(ifile)
+  end subroutine
+
+  subroutine read_record(unit, line)
+    integer, intent(in) :: unit
+    character(:), allocatable, intent(out) :: line
+    character(4096) :: chunk
+    integer :: nread, status
+
+    line = ''
+    do
+      read(unit, '(A)', advance='no', size=nread, iostat=status) chunk
+      if (nread > 0) line = line//chunk(:nread)
+      if (status == iostat_eor) return
+      if (status == iostat_end) call perror('Unexpected end of input file.')
+      if (status /= 0) call perror('Error reading input file.')
+    end do
+  end subroutine
+
+  subroutine read_named_row(line, values)
+    character(*), intent(inout) :: line
+    real, intent(out) :: values(:)
+
+    call take_field(line, rownames(irow))
+    read(line, *) values
+  end subroutine
+
+  subroutine normalize_delimiters(line)
+    character(*), intent(inout) :: line
+    integer :: i
+
+    do i=1, len_trim(line)
+      if (line(i:i) == ',' .or. line(i:i) == achar(9)) line(i:i) = ' '
+    end do
+  end subroutine
+
+  subroutine take_field(line, field)
+    character(*), intent(inout) :: line
+    character(*), intent(out) :: field
+    integer :: boundary
+
+    line = adjustl(line)
+    boundary = index(trim(line), ' ')
+    if (boundary == 0) then
+      field = trim(line)
+      line = ''
+    else
+      field = line(:boundary-1)
+      line = adjustl(line(boundary+1:))
+    end if
   end subroutine
 
   subroutine filter()

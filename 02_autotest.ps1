@@ -165,9 +165,71 @@ Write-TestFile $namedRepeated @(
   "last 1 2"
 )
 
+$dated = Join-Path $tmp "dated.dat"
+Write-TestFile $dated @(
+  "TIME D1 D2 D3",
+  "09/30/1973_24:00 0.0000 0.0000 0.0000",
+  "10/31/1973_24:00 -0.0151 -0.0592 0.0387"
+)
+
+$datedComma = Join-Path $tmp "dated_comma.dat"
+Write-TestFile $datedComma @(
+  "TIME, D1,D2,D3",
+  "09/30/1973_24:00, 0.0000,0.0000,0.0000",
+  "10/31/1973_24:00,-0.0151, -0.0592,0.0387"
+)
+
+$datedTab = Join-Path $tmp "dated_tab.dat"
+Write-TestFile $datedTab @(
+  "TIME`tD1`tD2`tD3",
+  "09/30/1973_24:00`t0.0000`t0.0000`t0.0000",
+  "10/31/1973_24:00`t-0.0151`t-0.0592`t0.0387"
+)
+
+$datedLong = Join-Path $tmp "dated_long.dat"
+$padding = " " * 5000
+Write-TestFile $datedLong @(
+  "TIME${padding}D1 D2 D3",
+  "09/30/1973_24:00${padding}0.0000 0.0000 0.0000",
+  "10/31/1973_24:00${padding}-0.0151 -0.0592 0.0387"
+)
+
 Assert-Matrix "add and default output" `
   @("-d", "4", "3", "-a", $base, "-", "1.0") `
   @(@(1, 2, 3), @(4, 5, 6), @(7, 8, 9), @(10, 11, 12))
+
+try {
+  $lfOutput = Join-Path $tmp "lf_output.dat"
+  & $ExePath -d 4 3 -a $base - 1.0 --lf $lfOutput | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "file output exited with code $LASTEXITCODE" }
+  $fileBytes = [IO.File]::ReadAllBytes((Resolve-Path $lfOutput).Path)
+
+  $start = New-Object Diagnostics.ProcessStartInfo
+  $start.FileName = (Resolve-Path $ExePath).Path
+  $start.Arguments = "-d 4 3 -a $base - 1.0 --lf"
+  $start.WorkingDirectory = (Get-Location).Path
+  $start.UseShellExecute = $false
+  $start.CreateNoWindow = $true
+  $start.RedirectStandardOutput = $true
+  $process = [Diagnostics.Process]::Start($start)
+  $outputBytes = New-Object IO.MemoryStream
+  $process.StandardOutput.BaseStream.CopyTo($outputBytes)
+  $process.WaitForExit()
+  if ($process.ExitCode -ne 0) { throw "stdout output exited with code $($process.ExitCode)" }
+
+  foreach ($bytes in @($fileBytes, $outputBytes.ToArray())) {
+    if (@($bytes | Where-Object { $_ -eq 10 }).Count -ne 4 -or
+        @($bytes | Where-Object { $_ -eq 13 }).Count -ne 0) {
+      throw "expected four LF bytes and no CR bytes"
+    }
+  }
+  $script:Passed += 1
+  Write-Host "PASS --lf file and stdout output"
+} catch {
+  $script:Failed += 1
+  Write-Host "FAIL --lf file and stdout output"
+  Write-Host "     $($_.Exception.Message)"
+}
 
 Assert-Matrix "scale, scalar multiply, offset" `
   @("-d", "4", "3", "-a", $base, "-", "2.0", "-m", "*3", "-o", "1") `
@@ -200,6 +262,30 @@ Assert-Matrix "row and column subsets" `
 Assert-Matrix "head option" `
   @("-d", "4", "3", "-a", $base, "-", "1.0", "--head", "2") `
   @(@(1, 2, 3), @(4, 5, 6))
+
+foreach ($datedCase in @(@("space", $dated), @("comma", $datedComma), @("tab", $datedTab), @("long-line", $datedLong))) {
+try {
+  $datedOutput = Invoke-ArrayMath @("-d", "2", "3", "-rn", "-cn", "--add", $datedCase[1], "-", "1")
+  $datedLines = @($datedOutput -split "`r?`n")
+  if ($datedLines.Count -ne 3 -or $datedLines[0] -notmatch '^TIME\s+D1\s+D2\s+D3' -or
+      $datedLines[1] -notmatch '^09/30/1973_24:00\s+' -or
+      $datedLines[2] -notmatch '^10/31/1973_24:00\s+') {
+    throw "unexpected dated array output: $datedOutput"
+  }
+  $datedNumeric = ConvertTo-NumericMatrix (($datedLines[1..2] | ForEach-Object { $_ -replace '^\S+\s+', '' }) -join "`n")
+  if ($datedNumeric.Count -ne 2 -or [math]::Abs($datedNumeric[1][0] + 0.0151) -gt 1e-5 -or
+      [math]::Abs($datedNumeric[1][1] + 0.0592) -gt 1e-5 -or
+      [math]::Abs($datedNumeric[1][2] - 0.0387) -gt 1e-5) {
+    throw "unexpected dated numeric values: $datedOutput"
+  }
+  $script:Passed += 1
+  Write-Host "PASS $($datedCase[0])-delimited named dates"
+} catch {
+  $script:Failed += 1
+  Write-Host "FAIL $($datedCase[0])-delimited named dates"
+  Write-Host "     $($_.Exception.Message)"
+}
+}
 
 Assert-Matrix "tail option" `
   @("-d", "4", "3", "-a", $base, "-", "1.0", "--tail", "2") `

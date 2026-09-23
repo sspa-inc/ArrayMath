@@ -77,6 +77,7 @@ bin\ArrayMath.exe -d 4 3 -a data.dat - 1.0 -x sum
 ```
 
 If `output` is omitted, results are printed to stdout. If `output` is provided as the final argument, ArrayMath writes to that file.
+By default, line endings use the Fortran compiler's normal output behavior. Use `--lf` to force LF (`\n`) endings in either destination.
 
 ## Data Model
 
@@ -86,7 +87,7 @@ ArrayMath stores data internally as a 2D real array with shape:
 nrow rows x ncol columns
 ```
 
-The command line declares this shape with `-d nrow ncol`. Input files are read as comma|tab|space-delimited text unless a future binary reader is implemented.
+The command line declares this shape with `-d nrow ncol`. Input files may use commas, tabs, or spaces between fields.
 
 Optional row and column names are supported:
 
@@ -160,6 +161,18 @@ Example:
 
 ```bat
 bin\ArrayMath.exe -d 4 3 -a data.dat - 1.0 -fm (3F12.4)
+```
+
+### Line Endings
+
+`--lf`, `-lf`
+
+Forces LF (`\n`) line endings for output to stdout or a file. By default, ArrayMath uses the Fortran compiler's normal output behavior.
+
+Example:
+
+```bat
+bin\ArrayMath.exe -d 4 3 -a data.dat - 1.0 --lf output.dat
 ```
 
 ### Offset
@@ -509,7 +522,7 @@ Sort columns by column name.
 
 - `-d` must be supplied before operations that need array allocation.
 - Options are applied immediately in the order they appear.
-- Text input is comma|tab|space-delimited (read by Fortran's read(, *)).
+- Text input accepts comma-, tab-, or space-separated fields. Row and column names are read as text; numeric values use Fortran list-directed input. Quoted CSV fields containing commas or spaces are not supported.
 - Column and row selectors use 1-based indexing.
 - `matinv` and `dot` are currently disabled/commented in the source.
 - MODFLOW binary options are placeholders and are not implemented yet.

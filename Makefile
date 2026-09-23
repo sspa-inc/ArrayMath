@@ -1,5 +1,8 @@
 FC = gfortran
 FFLAGS ?= -cpp -fbacktrace -ffree-line-length-none -O2 -static -s
+ifeq ($(OS),Windows_NT)
+FFLAGS += -D_WIN32
+endif
 
 SRC_DIR := src
 BUILD_DIR := build
