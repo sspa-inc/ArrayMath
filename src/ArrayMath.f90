@@ -849,6 +849,7 @@ program arraymath
   case ('exp'      ); results = exp     (results)
   case ('log10'    ); results = log10   (results)
   case ('log'      ); results = log     (results)
+  case ('asinh'    ); results = asinh   (results)
   case ('sqrt'     ); results = sqrt    (results)
   case ('sinh'     ); results = sinh    (results)
   case ('cosh'     ); results = cosh    (results)
@@ -958,8 +959,9 @@ program arraymath
     print "(A)", '     exp        computes the base e exponential of the array.'
     print "(A)", '     log10      computes the base 10 logarithm of the array.'
     print "(A)", '     log        computes the base e logarithm of the array.'
+    print "(A)", '     asinh      computes the inverse hyperbolic sine; linear near zero and logarithmic at large magnitudes.'
     print "(A)", '     sqrt       computes the square root of the array.'
-    print "(A)", '     sinh       computes the inverse hyperbolic sine of the array.'
+    print "(A)", '     sinh       computes the hyperbolic sine of the array.'
     print "(A)", '     cosh       computes the hyperbolic cosine of the array.'
     print "(A)", '     tanh       computes the hyperbolic tangent of the array.'
     print "(A)", '     sin        computes the sine of the array.'

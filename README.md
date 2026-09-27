@@ -466,6 +466,7 @@ These functions preserve the current array shape:
 | `exp` | Exponential |
 | `log10` | Base-10 logarithm |
 | `log` | Natural logarithm |
+| `asinh` | Inverse hyperbolic sine; a smooth signed-log transform that is approximately linear near zero and logarithmic at large magnitudes |
 | `sqrt` | Square root |
 | `sinh` | Hyperbolic sine |
 | `cosh` | Hyperbolic cosine |

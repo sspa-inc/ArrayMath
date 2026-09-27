@@ -278,6 +278,15 @@ Assert-Matrix "diff function" `
   @("-d", "4", "3", "-a", $base, "-", "1.0", "-x", "diff") `
   @(@(1, 2, 3), @(3, 3, 3), @(3, 3, 3), @(3, 3, 3))
 
+$signedValues = Join-Path $tmp "signed-values.dat"
+Write-TestFile $signedValues @(
+  "-100 -1 0 1 100"
+)
+
+Assert-Matrix "smooth signed logarithm" `
+  @("-d", "1", "5", "-a", $signedValues, "-", "1.0", "-x", "asinh") `
+  @( @(-5.29834237, -0.88137359, 0, 0.88137359, 5.29834237) )
+
 Assert-Matrix "transpose option" `
   @("-d", "4", "3", "-a", $base, "-", "1.0", "-t") `
   @(@(1, 4, 7, 10), @(2, 5, 8, 11), @(3, 6, 9, 12))
